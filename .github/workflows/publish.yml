@@ -1,0 +1,118 @@
+# Publishes @addiscorp/vite-plugin-p8 to npm.
+#
+#   canary  tag-canary.yml runs this with X.Y.Z-canary-<sha> and dist-tag
+#           `canary`, built from that canary tag.
+#   stable  promote.yml runs this with X.Y.Z and dist-tag `latest`, built
+#           from the promoted canary's tag.
+#
+# Run by hand only to retry one of those. The package carries php2.wasm as
+# p8-wasm.json pins it: downloaded from p8-wasm-releases.addis.gg and checked
+# against the pin and the release's release.json, never rebuilt (APS 9).
+#
+# npm trusted publishing (OIDC): npm trusts this workflow by its filename
+# (`publish.yml`) in the `release` environment. There is no NPM_TOKEN anywhere.
+# Renaming this file breaks that trust.
+name: publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'X.Y.Z-canary-<sha> or X.Y.Z'
+        required: true
+        type: string
+      ref:
+        description: "The git tag to build from (the canary's tag, also for a promotion)"
+        required: true
+        type: string
+      dist_tag:
+        description: 'npm dist-tag'
+        required: true
+        type: choice
+        options: [canary, latest]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: npm-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    environment: release
+    permissions:
+      contents: read
+      id-token: write # OIDC: trusted publishing, no NPM_TOKEN
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+          registry-url: https://registry.npmjs.org
+      - name: The version belongs to this tag and dist-tag
+        env:
+          VERSION: ${{ inputs.version }}
+          REF: ${{ inputs.ref }}
+          DIST_TAG: ${{ inputs.dist_tag }}
+        run: |
+          set -euo pipefail
+          case "$DIST_TAG:$VERSION" in
+            canary:*-canary-*) [ "v${VERSION}" = "$REF" ] || { echo "::error::canary ${VERSION} must be built from tag v${VERSION}, not ${REF}" >&2; exit 1; } ;;
+            latest:*) [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ && "$REF" == "v${VERSION}-canary-"* ]] \
+                        || { echo "::error::stable ${VERSION} must be X.Y.Z, built from a v${VERSION}-canary-<sha> tag, not ${REF}" >&2; exit 1; } ;;
+            *) echo "::error::${VERSION} doesn't belong on dist-tag ${DIST_TAG}" >&2; exit 1 ;;
+          esac
+          [[ "$REF" =~ -canary-([0-9a-f]{7})$ ]] && [ "${BASH_REMATCH[1]}" = "$(git rev-parse --short=7 HEAD)" ] \
+            || { echo "::error::${REF} doesn't name the commit it points at" >&2; exit 1; }
+          base="$(node -p "require('./package.json').version")"
+          [ "${VERSION%%-canary-*}" = "$base" ] \
+            || { echo "::error::${VERSION} isn't a build of package.json's ${base}" >&2; exit 1; }
+      - run: npm ci
+      - run: npm run fetch:wasm
+      - run: npm test
+      # Trusted publishing needs npm >= 11.5.1.
+      - run: npm install -g npm@12 && npm --version
+      - name: Publish (or, if this version is already on npm, move the dist-tag to it)
+        env:
+          VERSION: ${{ inputs.version }}
+          DIST_TAG: ${{ inputs.dist_tag }}
+        run: |
+          set -euo pipefail
+          P=@addiscorp/vite-plugin-p8
+          if [ "$(npm view "${P}@${VERSION}" version 2>/dev/null || true)" = "$VERSION" ]; then
+            if [ "$(npm view "${P}@${DIST_TAG}" version 2>/dev/null || true)" = "$VERSION" ]; then
+              echo "${P}@${VERSION} is already on npm as ${DIST_TAG}; nothing to do"
+            else
+              npm dist-tag add "${P}@${VERSION}" "$DIST_TAG"
+            fi
+          else
+            npm version "$VERSION" --no-git-tag-version --allow-same-version
+            npm publish --access public --tag "$DIST_TAG"
+          fi
+      # Read back from npm: the dist-tag names this version, and its tarball
+      # carries the pinned php2.wasm. npm may take a few minutes to show it.
+      - name: Verify
+        env:
+          VERSION: ${{ inputs.version }}
+          DIST_TAG: ${{ inputs.dist_tag }}
+        run: |
+          set -euo pipefail
+          P=@addiscorp/vite-plugin-p8
+          for _ in $(seq 30); do
+            [ "$(npm view "${P}@${DIST_TAG}" version 2>/dev/null || true)" = "$VERSION" ] && break
+            sleep 20
+          done
+          [ "$(npm view "${P}@${DIST_TAG}" version)" = "$VERSION" ] || { echo "::error::${P}@${DIST_TAG} never became ${VERSION}" >&2; exit 1; }
+          mkdir -p "$RUNNER_TEMP/readback" && cd "$RUNNER_TEMP/readback"
+          curl -fsSL "$(npm view "${P}@${VERSION}" dist.tarball)" | tar xz
+          want="$(node -p "require('$GITHUB_WORKSPACE/p8-wasm.json').sha256")"
+          got="$(sha256sum package/php2.wasm | cut -d' ' -f1)"
+          [ "$got" = "$want" ] || { echo "::error::npm's php2.wasm is ${got}, p8-wasm.json pins ${want}" >&2; exit 1; }
+          {
+            echo "### ${P}@${VERSION} on ${DIST_TAG}"
+            echo "- php2.wasm $(node -p "require('$GITHUB_WORKSPACE/p8-wasm.json').version"), sha256 ${got}"
+          } >> "$GITHUB_STEP_SUMMARY"

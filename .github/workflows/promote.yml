@@ -1,0 +1,50 @@
+# Promote a canary to stable (APS 9): run by a person, Actions → Promote →
+# Run workflow, with the canary tag. It tags the canary's commit vX.Y.Z and
+# publishes X.Y.Z on dist-tag latest from that same commit and the same
+# pinned php2.wasm (publish.yml checks its sha256 again).
+name: Promote
+
+on:
+  workflow_dispatch:
+    inputs:
+      canary:
+        description: 'Canary tag to promote (e.g. v0.1.0-canary-a1b2c3d)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  promote:
+    runs-on: ${{ vars.HOST_RUNNERS == 'true' && 'host-linux-x64' || 'ubuntu-24.04' }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+      - name: Tag and dispatch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANARY: ${{ inputs.canary }}
+        run: |
+          set -euo pipefail
+          [[ "$CANARY" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)-canary-[0-9a-f]{7}$ ]] \
+            || { echo "::error::${CANARY} is not vX.Y.Z-canary-<sha>" >&2; exit 1; }
+          V="${BASH_REMATCH[1]}"
+          git rev-parse "$CANARY" >/dev/null 2>&1 || { echo "::error::no tag ${CANARY}" >&2; exit 1; }
+          [ "$(npm view "@addiscorp/vite-plugin-p8@${CANARY#v}" version 2>/dev/null || true)" = "${CANARY#v}" ] \
+            || { echo "::error::${CANARY#v} was never published to npm; only a published canary is promoted" >&2; exit 1; }
+          if git rev-parse "v${V}" >/dev/null 2>&1; then
+            [ "$(git rev-parse "v${V}^{commit}")" = "$(git rev-parse "${CANARY}^{commit}")" ] \
+              || { echo "::error::v${V} already names another commit" >&2; exit 1; }
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag -a "v${V}" "${CANARY}^{commit}" -m "vite-plugin-p8 ${V} (promoted ${CANARY})"
+            git push origin "v${V}"
+          fi
+          gh workflow run publish.yml --repo "${{ github.repository }}" --ref main \
+            -f version="$V" -f ref="$CANARY" -f dist_tag=latest
+          echo "### ${V} (stable, from ${CANARY}): publish.yml dispatched" >> "$GITHUB_STEP_SUMMARY"

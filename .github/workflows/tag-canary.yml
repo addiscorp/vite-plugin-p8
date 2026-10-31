@@ -1,0 +1,52 @@
+# Nightly canary (APS 9): once a night, main becomes a canary on npm if it
+# changed since the last one. Actions → Tag canary → Run workflow makes one now.
+#
+#   1. TAG = v<package.json version>-canary-<7-char sha>.
+#   2. Push TAG as an annotated tag. A push made with GITHUB_TOKEN starts no
+#      workflow (GitHub's loop prevention), so:
+#   3. dispatch publish.yml with TAG and dist-tag canary; workflow_dispatch is
+#      the exception that GITHUB_TOKEN may start.
+#
+# When v<version> already exists the version was promoted: nothing is
+# published until a PR bumps package.json's version.
+name: Tag canary
+
+on:
+  schedule:
+    - cron: '0 9 * * *' # 09:00 UTC, 03:00 in Alberta
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  tag-canary:
+    runs-on: ${{ vars.HOST_RUNNERS == 'true' && 'host-linux-x64' || 'ubuntu-24.04' }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+      - name: Compute, push and dispatch the canary tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          V="$(node -p "require('./package.json').version")"
+          if git rev-parse "v${V}" >/dev/null 2>&1; then
+            echo "::warning::v${V} is already promoted; bump package.json's version before the next canary"
+            exit 0
+          fi
+          TAG="v${V}-canary-$(git rev-parse --short=7 HEAD)"
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "canary tag ${TAG} already exists (main hasn't changed since); nothing to do"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "vite-plugin-p8 canary ${TAG}"
+          git push origin "$TAG"
+          gh workflow run publish.yml --repo "${{ github.repository }}" --ref main \
+            -f version="${TAG#v}" -f ref="$TAG" -f dist_tag=canary
+          echo "### ${TAG#v} (canary): publish.yml dispatched" >> "$GITHUB_STEP_SUMMARY"

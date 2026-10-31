@@ -21,15 +21,19 @@ export default { plugins: [p8()] };
   `{ file, render }`. `await render(props)` is the HTML the template prints;
   the props are the PHP global `$props`.
 
-This is an experiment. The package is private and not published.
+Not released yet: `@addiscorp/vite-plugin-p8` on npm is a placeholder until the first canary.
 
 ## Setup
 
-php2.wasm is built from a checkout of [p8runtime/runtime](https://github.com/p8runtime/runtime):
+The package ships php2.wasm from a P8 wasm release: `p8-wasm.json` pins its
+version and sha256, and `npm run fetch:wasm` downloads it from
+`p8-wasm-releases.addis.gg` and checks both. To try a runtime change, build it
+from a checkout of [p8runtime/runtime](https://github.com/p8runtime/runtime)
+instead:
 
 ```sh
 npm install
-npm run build:wasm -- ../runtime   # cargo build --profile wasm -p php-cli --bin php2 --target wasm32-wasip1 there, copied to ./php2.wasm
+npm run fetch:wasm   # or: npm run build:wasm -- ../runtime
 npm test
 npm run dev          # the example app, on http://localhost:5173
 ```

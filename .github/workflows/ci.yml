@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ${{ vars.HOST_RUNNERS == 'true' && 'host-linux-x64' || 'mirab-linux-arm64' }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+      - run: npm ci
+      # The php2.wasm p8-wasm.json pins, checked against its sha256.
+      - run: npm run fetch:wasm
+      - run: npm run typecheck
+      - run: npm test
+      # What npm would ship: the built plugin and php2.wasm, nothing else.
+      - name: Package contents
+        run: |
+          set -euo pipefail
+          npm pack --dry-run --json > pack.json
+          node -e '
+            const files = JSON.parse(require("fs").readFileSync("pack.json", "utf8"))[0].files.map((f) => f.path).sort();
+            const bad = files.filter((f) => !/^(dist\/[^/]+\.(js|d\.ts)|php2\.wasm|package\.json|README\.md|LICENSE)$/.test(f));
+            for (const need of ["dist/index.js", "dist/response.js", "php2.wasm"]) if (!files.includes(need)) bad.push(`missing ${need}`);
+            if (bad.length) { console.error("package contents:", bad); process.exit(1); }
+            console.log(files.join("\n"));
+          '
