@@ -2,7 +2,7 @@
 // route handler (Hono, a Worker) uses with a `.php` module.
 //
 //   import Page from './Page.php';
-//   import { renderToResponse } from 'vite-plugin-p8/runtime';
+//   import { renderToResponse } from '@addiscorp/vite-plugin-p8/runtime';
 //
 //   // The request itself: the page reads $_GET, $_POST, $_COOKIE, $_SERVER.
 //   app.get('/hello', (c) => renderToResponse(Page, { request: c.req.raw }));

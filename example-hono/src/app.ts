@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { renderToResponse } from 'vite-plugin-p8/runtime';
+import { renderToResponse } from '@addiscorp/vite-plugin-p8/runtime';
 import Page from './components/Page.php';
 
 const app = new Hono();

@@ -1,7 +1,7 @@
 // vite-plugin-p8: PHP pages and templates in a Vite project, run by p8
 // (a PHP 8.4 runtime in Rust) built for WebAssembly (wasm32-wasip1).
 //
-//   import p8 from 'vite-plugin-p8';
+//   import p8 from '@addiscorp/vite-plugin-p8';
 //   export default { plugins: [p8()] };
 //
 // - The dev server answers a request for a .php file under `root` with what
@@ -211,8 +211,8 @@ export default function p8(options: P8Options = {}): Plugin {
       if (opts?.ssr) {
         // On the server: rendered here, by the wasm.
         return [
-          `const renderFile = globalThis[Symbol.for('vite-plugin-p8.renderFile')] ?? (await import('vite-plugin-p8')).renderFile;`,
-          `const fetchFile = globalThis[Symbol.for('vite-plugin-p8.fetchFile')] ?? (await import('vite-plugin-p8')).fetchFile;`,
+          `const renderFile = globalThis[Symbol.for('vite-plugin-p8.renderFile')] ?? (await import('@addiscorp/vite-plugin-p8')).renderFile;`,
+          `const fetchFile = globalThis[Symbol.for('vite-plugin-p8.fetchFile')] ?? (await import('@addiscorp/vite-plugin-p8')).fetchFile;`,
           `const config = ${JSON.stringify(config)};`,
           `export const file = ${JSON.stringify(file)};`,
           `export function render(props) { return renderFile(config, file, props); }`,

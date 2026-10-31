@@ -1,4 +1,4 @@
-# vite-plugin-p8
+# @addiscorp/vite-plugin-p8
 
 PHP pages and PHP templates in a Vite project, run by
 [p8](../../README.md) (a PHP 8.4 runtime written in Rust) compiled to
@@ -7,7 +7,7 @@ install and no native binary is needed.
 
 ```js
 // vite.config.js
-import p8 from 'vite-plugin-p8';
+import p8 from '@addiscorp/vite-plugin-p8';
 
 export default { plugins: [p8()] };
 ```
@@ -182,7 +182,7 @@ Not built; what would carry over:
 
 ## With Hono (server-side rendering)
 
-On the server, `renderToResponse` (`vite-plugin-p8/runtime`, no Node or
+On the server, `renderToResponse` (`@addiscorp/vite-plugin-p8/runtime`, no Node or
 Vite imports) renders a `.php` page into a Response. Give it `{ props }` and
 the page reads them as `$props`; give it `{ request }` instead and the page
 gets the request itself, as under `php -S` (`$_GET`, `$_SERVER`, `header()`).
@@ -191,7 +191,7 @@ gets the request itself, as under `php -S` (`$_GET`, `$_SERVER`, `header()`).
 // vite.config.ts
 import devServer from '@hono/vite-dev-server';
 import { defineConfig } from 'vite';
-import p8 from 'vite-plugin-p8';
+import p8 from '@addiscorp/vite-plugin-p8';
 
 export default defineConfig({
   plugins: [p8(), devServer({ entry: 'src/app.ts' })],
@@ -201,7 +201,7 @@ export default defineConfig({
 ```ts
 // src/app.ts
 import { Hono } from 'hono';
-import { renderToResponse } from 'vite-plugin-p8/runtime';
+import { renderToResponse } from '@addiscorp/vite-plugin-p8/runtime';
 import Page from './components/Page.php';
 
 const app = new Hono();

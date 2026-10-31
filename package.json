@@ -1,5 +1,5 @@
 {
-  "name": "vite-plugin-p8",
+  "name": "@addiscorp/vite-plugin-p8",
   "version": "0.1.0",
   "description": "PHP pages and templates in Vite, run by p8 (a PHP 8.4 runtime in Rust) as WebAssembly",
   "license": "MIT",
