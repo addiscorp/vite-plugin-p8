@@ -1,0 +1,52 @@
+{
+  "name": "@addiscorp/vite-plugin-p8",
+  "version": "0.1.0",
+  "description": "PHP pages and templates in Vite, run by p8 (a PHP 8.4 runtime in Rust) as WebAssembly",
+  "license": "Apache-2.0",
+  "homepage": "https://p8.addis.gg",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/addiscorp/vite-plugin-p8.git"
+  },
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./runtime": {
+      "types": "./dist/response.d.ts",
+      "default": "./dist/response.js"
+    }
+  },
+  "files": [
+    "dist",
+    "php2.wasm"
+  ],
+  "engines": {
+    "node": ">=23.6"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build:wasm": "node scripts/build-wasm.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run build && node --test --test-concurrency=1 test/*.test.ts",
+    "bench": "node scripts/bench.ts",
+    "dev": "vite example",
+    "dev:hono": "vite example-hono",
+    "build": "tsc -p tsconfig.build.json",
+    "fetch:wasm": "node scripts/fetch-wasm.ts"
+  },
+  "peerDependencies": {
+    "vite": ">=6"
+  },
+  "devDependencies": {
+    "@hono/vite-dev-server": "^0.26.1",
+    "@types/node": "^24.19.2",
+    "hono": "^4.13.14",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.7"
+  }
+}
