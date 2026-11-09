@@ -12,3 +12,7 @@ export default defineConfig({
 ```
 
 Not released yet. Follow https://github.com/addiscorp/vite-plugin-p8.
+
+## License
+
+[MIT](LICENSE)
